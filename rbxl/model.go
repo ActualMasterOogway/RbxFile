@@ -8,6 +8,7 @@ import (
 
 	"github.com/anaminus/parse"
 	"github.com/bkaradzic/go-lz4"
+	"github.com/klauspost/compress/zstd"
 )
 
 ////////////////////////////////////////////////////////////////
@@ -20,6 +21,9 @@ const binaryMarker = "!"
 
 // binaryHeader is the header magic of a binary file.
 const binaryHeader = "\x89\xff\r\n\x1a\n"
+
+// zstdHeader is the header magic of zstd compressed data.
+const zstdHeader = "\x28\xB5\x2F\xFD"
 
 ////////////////////////////////////////////////////////////////
 
@@ -143,6 +147,8 @@ type rawChunk struct {
 	signature uint32
 	compressed
 	payload []byte
+	isLZ4   bool
+	isZSTD  bool
 }
 
 func (c rawChunk) Signature() sig {
@@ -180,22 +186,50 @@ func (c *rawChunk) Decode(fr *parse.BinaryReader) bool {
 	} else {
 		c.compressed = true
 
-		// Prepare compressed data for reading by lz4, which requires the
-		// uncompressed length before the compressed data.
-		compressedData := make([]byte, compressedLength+4)
-		binary.LittleEndian.PutUint32(compressedData, decompressedLength)
-
-		if fr.Bytes(compressedData[4:]) {
+		// Prepare compressed data for reading
+		compressedData := make([]byte, compressedLength)
+		if fr.Bytes(compressedData) {
 			return true
 		}
 
-		// ROBLOX ERROR: "Malformed data ([true decompressed length] != [given
-		// decompressed length])". lz4 already does some kind of size
-		// validation, though the error message isn't the same.
+		// Check for ZSTD header
+		if binary.LittleEndian.Uint32(compressedData[:4]) == binary.LittleEndian.Uint32([]byte(zstdHeader)) {
+			c.isZSTD = true
+			// Decompress using ZSTD
+			reader, err := zstd.NewReader(nil)
+			if err != nil {
+				fr.Add(0, fmt.Errorf("zstd: could not create reader: %w", err))
+				return true
+			}
 
-		if _, err := lz4.Decode(c.payload, compressedData); err != nil {
-			fr.Add(0, fmt.Errorf("lz4: %s", err.Error()))
-			return true
+			defer reader.Close()
+			decompressedData, err := reader.DecodeAll(compressedData, make([]byte, 0, decompressedLength))
+
+			if err != nil {
+				fr.Add(0, fmt.Errorf("zstd: %w", err))
+				return true
+			} else if uint32(len(decompressedData)) != decompressedLength {
+				fr.Add(0, fmt.Errorf("zstd: decompressed length mismatch"))
+				return true
+			}
+
+			c.payload = decompressedData
+		} else {
+			c.isLZ4 = true
+			// Prepare compressed data for reading by lz4, which requires the
+			// uncompressed length before the compressed data.
+			lz4Data := make([]byte, compressedLength+4)
+			binary.LittleEndian.PutUint32(lz4Data, decompressedLength)
+			copy(lz4Data[4:], compressedData)
+
+			// ROBLOX ERROR: "Malformed data ([true decompressed length] != [given
+			// decompressed length])". lz4 already does some kind of size
+			// validation, though the error message isn't the same.
+
+			if _, err := lz4.Decode(c.payload, lz4Data); err != nil {
+				fr.Add(0, fmt.Errorf("lz4: %s", err.Error()))
+				return true
+			}
 		}
 	}
 
@@ -210,21 +244,31 @@ func (c *rawChunk) WriteTo(fw *parse.BinaryWriter) bool {
 
 	if c.compressed {
 		var compressedData []byte
-		compressedData, err := lz4.Encode(compressedData, c.payload)
-		if fw.Add(0, err) {
-			return true
+		var err error
+		if c.isZSTD {
+			encoder, err := zstd.NewWriter(nil)
+			if err != nil {
+				return true
+			}
+			compressedData = encoder.EncodeAll(c.payload, make([]byte, 0, len(c.payload)))
+			err = encoder.Close()
+			if err != nil {
+				return true
+			}
+		} else {
+			compressedData, err = lz4.Encode(compressedData, c.payload)
+			if fw.Add(0, err) {
+				return true
+			}
+
+			// lz4 sanity check
+			if binary.LittleEndian.Uint32(compressedData[:4]) != uint32(len(c.payload)) {
+				panic("lz4 uncompressed length does not match payload length")
+			}
+			compressedData = compressedData[4:]
 		}
 
-		// lz4 sanity check
-		if binary.LittleEndian.Uint32(compressedData[:4]) != uint32(len(c.payload)) {
-			panic("lz4 uncompressed length does not match payload length")
-		}
-
-		// Compressed length; lz4 prepends the length of the uncompressed
-		// payload, so it must be excluded.
-		compressedPayload := compressedData[4:]
-
-		if fw.Number(uint32(len(compressedPayload))) {
+		if fw.Number(uint32(len(compressedData))) {
 			return true
 		}
 
@@ -238,7 +282,7 @@ func (c *rawChunk) WriteTo(fw *parse.BinaryWriter) bool {
 			return true
 		}
 
-		if fw.Bytes(compressedPayload) {
+		if fw.Bytes(compressedData) {
 			return true
 		}
 	} else {

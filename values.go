@@ -54,6 +54,7 @@ const (
 	TypeOptional
 	TypeUniqueId
 	TypeFont
+	TypeSecurityCapabilities
 )
 
 // TypeFromString returns a Type from its string representation. TypeInvalid
@@ -101,6 +102,7 @@ var typeStrings = map[Type]string{
 	TypeOptional:           "Optional",
 	TypeUniqueId:           "UniqueId",
 	TypeFont:               "Font",
+	TypeSecurityCapabilities:       "SecurityCapabilities",
 }
 
 // Value holds a value of a particular Type.
@@ -162,6 +164,7 @@ var valueGenerators = map[Type]valueGenerator{
 	TypeOptional:           newValueOptional,
 	TypeUniqueId:           newValueUniqueId,
 	TypeFont:               newValueFont,
+	TypeSecurityCapabilities:       newValueSecurityCapabilities,
 }
 
 func joinstr(a ...string) string {
@@ -1186,3 +1189,29 @@ func (t ValueFont) Copy() Value {
 		CachedFaceId: t.Family.Copy().(ValueContent),
 	}
 }
+
+////////////////
+
+
+type ValueSecurityCapabilities struct {
+	RawData      uint64
+}
+
+func newValueSecurityCapabilities() Value {
+	return *new(ValueSecurityCapabilities)
+}
+
+func (ValueSecurityCapabilities) Type() Type {
+	return TypeSecurityCapabilities
+}
+
+func (t ValueSecurityCapabilities) String() string {
+	return strconv.FormatUint(t.RawData, 16)
+}
+
+func (t ValueSecurityCapabilities) Copy() Value {
+	return ValueSecurityCapabilities{
+		RawData: t.RawData,
+	}
+}
+

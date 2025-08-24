@@ -316,6 +316,8 @@ func (robloxCodec) GetCanonTag(valueType rbxfile.Type, optional bool) (canonTag 
 		canonTag = "UniqueId"
 	case rbxfile.TypeFont:
 		canonTag = "Font"
+	case rbxfile.TypeSecurityCapabilities:
+		canonTag = "SecurityCapabilities"
 	}
 	if optional {
 		canonTag = "Optional" + canonTag

@@ -58,6 +58,6 @@ func main() {
 		fmt.Fprintln(os.Stderr, fmt.Errorf("warning: %w", warn))
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, fmt.Errorf("error: %w", warn))
+		fmt.Fprintln(os.Stderr, fmt.Errorf("error: %w", err))
 	}
 }

@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/anaminus/parse v0.2.0
 	github.com/bkaradzic/go-lz4 v1.0.0
+	github.com/klauspost/compress v1.18.0
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
 )
 
