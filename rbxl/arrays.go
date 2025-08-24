@@ -324,6 +324,8 @@ func newArray(t typeID, n int) array {
 		return make(arrayUniqueId, n)
 	case typeFont:
 		return make(arrayFont, n)
+	case typeSecurityCapabilities:
+		return make(arraySecurityCapabilities, n)
 	}
 	return nil
 }
@@ -1566,3 +1568,38 @@ func (a arrayFont) Bytes(b []byte) []byte {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type arraySecurityCapabilities []valueSecurityCapabilities
+
+func (arraySecurityCapabilities) Type() typeID {
+	return typeSecurityCapabilities
+}
+
+func (a arraySecurityCapabilities) Len() int {
+	return len(a)
+}
+
+func (a arraySecurityCapabilities) Get(i int) value {
+	v := a[i]
+	return &v
+}
+
+func (a arraySecurityCapabilities) Set(i int, v value) {
+	a[i] = *v.(*valueSecurityCapabilities)
+}
+
+func (a arraySecurityCapabilities) BytesLen() int {
+	return len(a) * zSecurityCapabilities
+}
+
+func (a arraySecurityCapabilities) Bytes(b []byte) []byte {
+	for _, v := range a {
+		b = v.Bytes(b)
+	}
+	return b
+}
+
+func (a arraySecurityCapabilities) Interleaved() {}
+
+////////////////////////////////////////////////////////////////////////////////
+

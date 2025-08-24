@@ -94,11 +94,12 @@ const (
 	typeOptional           typeID = 0x1E
 	typeUniqueId           typeID = 0x1F
 	typeFont               typeID = 0x20
+	typeSecurityCapabilities	   typeID = 0x21
 )
 
 // Valid returns whether the type has a valid value.
 func (t typeID) Valid() bool {
-	return typeString <= t && t <= typeFont && t != typeSignedString
+	return typeString <= t && t <= typeSecurityCapabilities && t != typeSignedString
 }
 
 // Size returns the number of bytes required to hold a value of the type.
@@ -170,6 +171,8 @@ func (t typeID) Size() int {
 		return zUniqueId
 	case typeFont:
 		return zFont
+	case typeSecurityCapabilities:
+		return zSecurityCapabilities
 	default:
 		return zInvalid
 	}
@@ -281,6 +284,8 @@ func (t typeID) String() string {
 		return "UniqueId"
 	case typeFont:
 		return "Font"
+	case typeSecurityCapabilities:
+		return "SecurityCapabilities"
 	default:
 		return "Invalid"
 	}
@@ -351,6 +356,8 @@ func (t typeID) ValueType() rbxfile.Type {
 		return rbxfile.TypeUniqueId
 	case typeFont:
 		return rbxfile.TypeFont
+	case typeSecurityCapabilities:
+		return rbxfile.TypeSecurityCapabilities
 	default:
 		return rbxfile.TypeInvalid
 	}
@@ -425,6 +432,8 @@ func fromValueType(t rbxfile.Type) typeID {
 		return typeUniqueId
 	case rbxfile.TypeFont:
 		return typeFont
+	case rbxfile.TypeSecurityCapabilities:
+		return typeSecurityCapabilities
 	default:
 		return typeInvalid
 	}
@@ -515,6 +524,8 @@ func newValue(typ typeID) value {
 		return new(valueUniqueId)
 	case typeFont:
 		return new(valueFont)
+	case typeSecurityCapabilities:
+		return new(valueSecurityCapabilities)
 	}
 	return nil
 }
@@ -2331,6 +2342,38 @@ func (v valueFont) Dump(w *bufio.Writer, indent int) {
 
 	dumpNewline(w, indent)
 	w.WriteByte('}')
+}
+
+////////////////////////////////////////////////////////////////
+
+const zSecurityCapabilities = 8
+
+type valueSecurityCapabilities struct {
+	RawData 	     uint64
+}
+
+func (valueSecurityCapabilities) Type() typeID {
+	return typeSecurityCapabilities
+}
+
+func (v valueSecurityCapabilities) BytesLen() int {
+	return zSecurityCapabilities
+}
+
+func (v valueSecurityCapabilities) Bytes(b []byte) []byte {
+	return appendUint64(b, be, v.RawData)
+}
+
+func (v *valueSecurityCapabilities) FromBytes(b []byte) (n int, err error) {
+	if n, err = checkLengthConst(v, b); err != nil {
+		return n, err
+	}
+	v.RawData = binary.BigEndian.Uint64(b)
+	return n, nil
+}
+
+func (v valueSecurityCapabilities) Dump(w *bufio.Writer, indent int) {
+	w.Write([]byte(strconv.FormatUint(v.RawData, 16)))
 }
 
 ////////////////////////////////////////////////////////////////
